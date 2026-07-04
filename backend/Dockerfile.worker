@@ -1,0 +1,46 @@
+# ============================================
+# Stage 1: Build TypeScript to JavaScript
+# ============================================
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and compile
+COPY . .
+RUN npm run build
+
+# ============================================
+# Stage 2: Production Worker Runtime
+# ============================================
+FROM node:20-alpine AS production
+
+# Security: add non-root user
+RUN addgroup -g 1001 -S scheduler && \
+    adduser -S scheduler -u 1001 -G scheduler
+
+WORKDIR /app
+
+# Install production dependencies only
+COPY package*.json ./
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy compiled application
+COPY --from=builder /app/dist ./dist
+
+# Set ownership
+RUN chown -R scheduler:scheduler /app
+
+# Switch to non-root user
+USER scheduler
+
+# Runtime environment
+ENV NODE_ENV=production
+ENV API_URL=http://backend:5000/api
+
+# Worker does not expose ports (it polls the API)
+CMD ["node", "dist/worker.js"]

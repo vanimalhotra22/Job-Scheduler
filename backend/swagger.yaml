@@ -1,0 +1,774 @@
+openapi: 3.0.3
+info:
+  title: Distributed Job Scheduler API Spec
+  version: 1.0.0
+  description: API documentation for the SDE-3 Enterprise Distributed Job Scheduler.
+servers:
+  - url: http://localhost:5000/api
+    description: Local Dev Server
+
+paths:
+  /auth/signup:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6 }
+                role: { type: string, enum: [ADMIN, USER] }
+      responses:
+        201:
+          description: User registered successfully
+        400:
+          description: Invalid input parameters
+
+  /auth/login:
+    post:
+      summary: Authenticate user credentials
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        200:
+          description: Login successful, returns JWT token
+        401:
+          description: Invalid credentials
+
+  /auth/profile:
+    get:
+      summary: Get user profile details
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Profile fetched successfully
+
+  /organizations:
+    post:
+      summary: Create a new organization tenant
+      tags: [Organizations]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        201:
+          description: Organization created
+    get:
+      summary: List organizations owned by user
+      tags: [Organizations]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: List of organizations
+
+  /projects:
+    post:
+      summary: Create a new project workspace
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id, name]
+              properties:
+                organization_id: { type: string }
+                name: { type: string }
+                description: { type: string }
+      responses:
+        201:
+          description: Project created
+    get:
+      summary: List projects in database
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: List of projects
+
+  /projects/{id}:
+    delete:
+      summary: Delete a project
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Project deleted
+
+  /queues:
+    post:
+      summary: Register a new queue
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, name]
+              properties:
+                project_id: { type: string }
+                name: { type: string }
+                priority: { type: integer, default: 1 }
+                concurrency_limit: { type: integer, default: 10 }
+                retry_policy_id: { type: string }
+                rate_limit_per_minute: { type: integer }
+                webhook_url: { type: string }
+                shard_count: { type: integer, default: 1 }
+                region: { type: string }
+      responses:
+        201:
+          description: Queue registered
+    get:
+      summary: List queues for a project
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: List of queues
+
+  /queues/{id}/pause:
+    patch:
+      summary: Toggle pause/resume state of a queue
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paused]
+              properties:
+                paused: { type: boolean }
+      responses:
+        200:
+          description: Queue state toggled
+
+  /queues/{id}/statistics:
+    get:
+      summary: Get queue statistics
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Statistics loaded
+
+  /queues/bulk/pause:
+    post:
+      summary: Pause or resume all queues owned by the user
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paused]
+              properties:
+                paused: { type: boolean }
+      responses:
+        200:
+          description: All queues state updated
+
+  /queues/{id}/purge:
+    post:
+      summary: Delete all inactive/queued jobs from queue
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Queue purged successfully
+
+  /jobs:
+    post:
+      summary: Create single or batch jobs
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [queue_id]
+              properties:
+                queue_id: { type: string }
+                payload: { type: object }
+                priority: { type: integer, default: 1 }
+                delay_ms: { type: integer, default: 0 }
+                scheduled_for: { type: string, format: date-time }
+                cron: { type: string }
+                batch: { type: array, items: { type: object } }
+                idempotency_key: { type: string }
+                dependency_job_id: { type: string }
+                tags: { type: array, items: { type: string } }
+      responses:
+        201:
+          description: Job created
+    get:
+      summary: Get jobs list
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: queue_id
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: List of jobs
+
+  /jobs/search:
+    get:
+      summary: Advanced job search
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: queue_id
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string }
+        - name: to
+          in: query
+          schema: { type: string }
+      responses:
+        200:
+          description: Query matches
+
+  /jobs/export:
+    get:
+      summary: Export jobs to CSV format
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: CSV file download
+
+  /jobs/{id}:
+    get:
+      summary: Get job details by ID
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Job details, executions, and logs
+    delete:
+      summary: Cancel / Delete job
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Job deleted
+
+  /jobs/{id}/retry:
+    post:
+      summary: Manually retry a failed/dead job
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Job reset to QUEUED state
+
+  /jobs/{id}/cancel:
+    post:
+      summary: Manually cancel an active job
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Job marked as CANCELLED
+
+  /jobs/bulk/retry:
+    post:
+      summary: Retry all failed or dead jobs
+      tags: [Jobs]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: Failed/dead jobs reset to QUEUED
+
+  /api-keys:
+    post:
+      summary: Create a new API Key for a project
+      tags: [API Keys]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, project_id]
+              properties:
+                name: { type: string }
+                project_id: { type: string }
+                expires_in_days: { type: integer }
+      responses:
+        201:
+          description: API Key created, key shown only once
+    get:
+      summary: List user API keys
+      tags: [API Keys]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: API Keys list
+
+  /api-keys/{id}:
+    delete:
+      summary: Revoke an API key
+      tags: [API Keys]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Key deleted
+
+  /audit-logs:
+    get:
+      summary: Retrieve project audit logs
+      tags: [Audit]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: entity_type
+          in: query
+          schema: { type: string }
+      responses:
+        200:
+          description: Audit logs list
+
+  /ai/failure-analysis:
+    post:
+      summary: AI operation failure diagnostic advisor
+      tags: [AI Ops]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [error_message]
+              properties:
+                error_message: { type: string }
+                payload: { type: object }
+      responses:
+        200:
+          description: Structured failure diagnostics
+
+  /ai/queue-prediction/{queueId}:
+    get:
+      summary: AI-based load forecasting regression analysis
+      tags: [AI Ops]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: queueId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Load prediction timeline
+
+  /ai/retry-recommendation:
+    post:
+      summary: Smart recommended retry delay backoff calculator
+      tags: [AI Ops]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [error_message]
+              properties:
+                error_message: { type: string }
+                retry_count: { type: integer }
+      responses:
+        200:
+          description: Recommended millisecond backoff delay
+
+  /ai/log-search:
+    post:
+      summary: NLP query search over system log history
+      tags: [AI Ops]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query: { type: string }
+      responses:
+        200:
+          description: Matching log items
+
+  /workers/register:
+    post:
+      summary: Register a new worker daemon instance
+      tags: [Workers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hostname]
+              properties:
+                hostname: { type: string }
+      responses:
+        201:
+          description: Worker registered
+
+  /workers/{id}/heartbeat:
+    post:
+      summary: Receive status heartbeat metrics from active worker
+      tags: [Workers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cpu_usage: { type: number }
+                memory_usage: { type: number }
+      responses:
+        200:
+          description: Heartbeat saved
+
+  /workers/{id}/poll:
+    post:
+      summary: Atomically poll and claim eligible queued jobs
+      tags: [Workers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Job claimed successfully
+        204:
+          description: No eligible jobs found
+
+  /workers/{id}/jobs/{jobId}/start:
+    post:
+      summary: Mark job execution state as started/running
+      tags: [Workers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Execution started
+
+  /workers/{id}/jobs/{jobId}/complete:
+    post:
+      summary: Mark job execution state as successful/completed
+      tags: [Workers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: Execution completed
+
+  /workers/{id}/jobs/{jobId}/fail:
+    post:
+      summary: Mark job execution state as failed
+      tags: [Workers]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error: { type: string }
+      responses:
+        200:
+          description: Failure processed and retries scheduled
+
+  /workers:
+    get:
+      summary: List registered worker nodes
+      tags: [Workers]
+      responses:
+        200:
+          description: List of worker nodes
+
+  /retry-policies:
+    get:
+      summary: List retry policies
+      tags: [Retry Policies]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: List of retry policies
+    post:
+      summary: Register a new retry policy template
+      tags: [Retry Policies]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [FIXED, LINEAR, EXPONENTIAL] }
+                delay_ms: { type: integer, default: 5000 }
+                multiplier: { type: number, default: 2.0 }
+                max_retries: { type: integer, default: 3 }
+      responses:
+        201:
+          description: Policy created
+
+  /logs:
+    get:
+      summary: Fetch system log history
+      tags: [Observability]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: level
+          in: query
+          schema: { type: string }
+      responses:
+        200:
+          description: Logs returned
+
+  /metrics:
+    get:
+      summary: Fetch system performance metrics
+      tags: [Observability]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Metrics returned
+
+  /prometheus/metrics:
+    get:
+      summary: Prometheus formatted metric scraper endpoint
+      tags: [Observability]
+      responses:
+        200:
+          description: Text metric content
+
+  /health/liveness:
+    get:
+      summary: Check if application server is alive
+      tags: [Observability]
+      responses:
+        200:
+          description: Server alive
+
+  /health/readiness:
+    get:
+      summary: Verify database ping status
+      tags: [Observability]
+      responses:
+        200:
+          description: DB ready
+        503:
+          description: DB offline
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
