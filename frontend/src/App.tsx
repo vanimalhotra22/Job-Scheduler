@@ -1,11 +1,9 @@
 // Vercel Deployment Trigger - Commit Fix
-import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const API_BASE = 'http://localhost:5000/api';
 
-// --- Theme Context ---
 type ThemeMode = 'dark' | 'light';
-const ThemeContext = createContext<{ theme: ThemeMode; toggle: () => void }>({ theme: 'dark', toggle: () => {} });
 
 // --- Toast System ---
 type ToastType = 'success' | 'error' | 'warning' | 'info';
