@@ -1,3 +1,4 @@
+// Vercel Deployment Trigger - Commit Fix
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
 
 const API_BASE = 'http://localhost:5000/api';
