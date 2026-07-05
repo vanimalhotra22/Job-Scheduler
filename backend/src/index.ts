@@ -72,6 +72,30 @@ async function startServer() {
     // Start HTTP and WebSocket listener
     httpServer.listen(PORT, () => {
       console.log(`Express Server & WebSockets running on port ${PORT}`);
+      
+      // On Render / Production environments, auto-start a worker process locally 
+      // to keep everything on the 100% Free tier without a separate worker service.
+      if (process.env.NODE_ENV === 'production') {
+        console.log('[System] Auto-spawning internal worker node...');
+        try {
+          const { fork } = require('child_process');
+          const path = require('path');
+          const workerPath = path.resolve(__dirname, './worker.js');
+          
+          const workerProcess = fork(workerPath, [], {
+            env: {
+              ...process.env,
+              API_SERVER: `http://localhost:${PORT}/api`
+            }
+          });
+          
+          workerProcess.on('error', (err: any) => {
+            console.error('[System] Internal worker process error:', err);
+          });
+        } catch (e) {
+          console.error('[System] Failed to auto-spawn internal worker:', e);
+        }
+      }
     });
 
     // Graceful Shutdown Handler
