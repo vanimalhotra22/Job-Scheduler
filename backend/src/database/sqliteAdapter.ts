@@ -22,7 +22,14 @@ export class SQLiteAdapter implements DbAdapter {
     await this.db.exec('PRAGMA foreign_keys = ON;');
     await this.db.exec('PRAGMA journal_mode = WAL;');
 
-    const schemaPath = path.resolve(__dirname, './schema.sql');
+    let schemaPath = path.resolve(__dirname, './schema.sql');
+    if (!fs.existsSync(schemaPath)) {
+      schemaPath = path.resolve(process.cwd(), 'src/database/schema.sql');
+    }
+    if (!fs.existsSync(schemaPath)) {
+      schemaPath = path.resolve(process.cwd(), 'dist/database/schema.sql');
+    }
+
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
       await this.db.exec(schemaSql);

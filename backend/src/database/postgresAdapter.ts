@@ -12,7 +12,14 @@ export class PostgresAdapter implements DbAdapter {
       connectionString
     });
 
-    const schemaPath = path.resolve(__dirname, './postgres-schema.sql');
+    let schemaPath = path.resolve(__dirname, './postgres-schema.sql');
+    if (!fs.existsSync(schemaPath)) {
+      schemaPath = path.resolve(process.cwd(), 'src/database/postgres-schema.sql');
+    }
+    if (!fs.existsSync(schemaPath)) {
+      schemaPath = path.resolve(process.cwd(), 'dist/database/postgres-schema.sql');
+    }
+
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
       await this.pool.query(schemaSql);
