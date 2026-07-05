@@ -23,6 +23,15 @@ app.use(express.json());
 // Main API Router mount
 app.use('/api', apiRouter);
 
+// Root landing endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Distributed Job Scheduler Engine API is online',
+    health: '/health',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
