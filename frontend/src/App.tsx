@@ -5,7 +5,6 @@ const API_BASE = 'http://localhost:5000/api';
 // --- Theme Context ---
 type ThemeMode = 'dark' | 'light';
 const ThemeContext = createContext<{ theme: ThemeMode; toggle: () => void }>({ theme: 'dark', toggle: () => {} });
-const useTheme = () => useContext(ThemeContext);
 
 // --- Toast System ---
 type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -291,7 +290,7 @@ function DAGView({ jobs, onSeedDemoDAG }: { jobs: any[]; onSeedDemoDAG: () => vo
     children[j.dependency_job_id].push(j);
   });
 
-  const renderNode = (job: any, depth: number, index: number) => {
+  const renderNode = (job: any, depth: number) => {
     const kids = children[job.id] || [];
     const statusColor = job.status === 'COMPLETED' ? 'var(--accent-success)' : job.status === 'RUNNING' ? 'var(--accent-cyan)' : job.status === 'FAILED' || job.status === 'DEAD' ? 'var(--accent-danger)' : job.status === 'BLOCKED' ? 'var(--accent-warning)' : 'var(--text-muted)';
     return (
@@ -304,7 +303,7 @@ function DAGView({ jobs, onSeedDemoDAG }: { jobs: any[]; onSeedDemoDAG: () => vo
             <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>{job.id.substring(0, 12)}</div>
           </div>
         </div>
-        {kids.map((child, ci) => renderNode(child, depth + 1, ci))}
+        {kids.map((child) => renderNode(child, depth + 1))}
       </div>
     );
   };
@@ -315,7 +314,7 @@ function DAGView({ jobs, onSeedDemoDAG }: { jobs: any[]; onSeedDemoDAG: () => vo
         <Icons.DAG /> Dependency Graph (DAG Pipeline)
       </h3>
       <div style={{ overflowX: 'auto' }}>
-        {rootJobs.map((root, i) => renderNode(root, 0, i))}
+        {rootJobs.map((root) => renderNode(root, 0))}
       </div>
     </div>
   );
@@ -415,11 +414,8 @@ export default function App() {
   const [workers, setWorkers] = useState<any[]>([]);
   const [systemLogs, setSystemLogs] = useState<any[]>([]);
 
-  // New data states
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
-  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
@@ -1377,6 +1373,7 @@ export default function App() {
   // --- Main Layout ---
   return (
     <div className="app-container">
+      <ToastContainer />
       <CommandPalette isOpen={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)} commands={commandList} />
       {/* Sidebar */}
       <aside style={{ width: '260px', backgroundColor: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
@@ -2217,7 +2214,7 @@ export default function App() {
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                             {predictions.map((p, idx) => (
-                              <span key={idx} style={{ flex: 1, textAlignment: 'center', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.time}</span>
+                              <span key={idx} style={{ flex: 1, textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.time}</span>
                             ))}
                           </div>
                         </div>
